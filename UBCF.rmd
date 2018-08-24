@@ -1,0 +1,73 @@
+---
+title: "User-based-Collaborative filtering"
+author: "Kathirmani Sukumar"
+date: "December 13, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Importing datasets
+```{r setup}
+knitr::opts_chunk$set(warning = FALSE)
+library(knitr)
+setwd("./")
+# Use this link to download the data file
+# https://github.com/skathirmani/datasets/raw/master/movies.zip
+movies=read.csv("movies.csv")
+ratings=read.csv("ratings.csv")
+View(head(movies))
+View(head(ratings))
+```
+
+ 
+### Data preparation 
+```{r,warning=FALSE}
+library(reshape2)
+ratingmat <- dcast(ratings, userId~movieId, value.var = "rating", na.rm=FALSE)
+dim(ratingmat)
+ratingmat[1:10,1:5]
+#remove userIds before coverting to rating matrix
+ratingmat <- as.matrix(ratingmat[,-1]) 
+View(ratingmat[1:10,1:5])
+```
+
+### Convert rating matrix into a recommenderlab sparse matrix
+  * Use recommenderlab library to build recommendation engin
+  
+```{r, message=FALSE, warning=FALSE}
+install.packages('recommenderlab')
+library(recommenderlab)
+ratingmat <- as(ratingmat, "realRatingMatrix")
+```
+
+### Create Recommender Model. "UBCF" stands for User-Based Collaborative Filtering
+
+```{r, warning=FALSE}
+recommender_model <- Recommender(ratingmat, method = "UBCF", param=list(method="Cosine",nn=30)) 
+summary(recommender_model)
+```
+
+ * parameters passed to recommender function are method used to caluculate the similarites between the user and nn stands for Nearest Neighbors, in this example algorithm looks for 30 Nearest Neighbors.
+ 
+### Get the top ten recommentaions for users in dataset
+
+```{r,warning=FALSE}
+Get_recomendation<-function(usr_id)
+{
+recom <- predict(recommender_model, ratingmat[usr_id,], n=10) 
+recom_list <- as(recom, "list") #convert recommenderlab object to readable list
+
+# getting the movie names for the list of top 10 movie ids
+recom_result <- matrix(0,10)
+for (i in c(1:10)){
+  recom_result[i] <- as.character(movies[which(movies$movieId == as.integer(recom_list[[1]][i])),2])
+}
+
+colnames(recom_result)<-"Movies"
+return(recom_result)
+}
+
+Get_recomendation(15)
+```
+
