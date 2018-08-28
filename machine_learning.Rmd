@@ -1,0 +1,133 @@
+---
+title: "Machine Learning"
+author: "Kathirmani Sukumar"
+date: "8/27/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Classification Algorithms
+- Decision Tree
+- Random Forest
+- KNN
+
+### Decision Trees
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(rpart)
+library(rattle)
+library(class)
+library(caret)
+library(randomForest)
+hr = read.csv('/datasets/HR Analytics.csv')
+bank = read.csv('/datasets/bank-full.csv',sep=";")
+adv = read.csv('/datasets/Advertising.csv') 
+hr$Attrition = as.factor(hr$Attrition)
+dim(hr)
+```
+
+#### Split data in to training & testing
+```{r}
+hr$Attrition = as.factor(hr$Attrition)
+set.seed(100)
+train_row_numbers = sample(seq(1, nrow(hr)), 0.7*nrow(hr))
+train_hr = hr[train_row_numbers,]
+test_hr = hr[-train_row_numbers,]
+```
+
+#### Fit decision tree model
+```{r}
+model = rpart(Attrition~., train_hr, control=rpart.control(maxdepth=3))
+fancyRpartPlot(model)
+```
+
+
+
+#### Gini Impurity on numerical input
+```{r}
+job_levels = sort(unique(train_hr$JobLevel))
+cuts = c()
+gis = c()
+N = nrow(train_hr)
+for (i in seq(1, length(job_levels)-1)){
+  cut = (job_levels[i] + job_levels[i+1]) / 2
+  Nl = train_hr %>% filter(JobLevel < cut) %>% nrow()
+  Nr = train_hr %>% filter(JobLevel > cut) %>% nrow()
+  p0_left = (train_hr %>% filter(JobLevel<cut, Attrition==0) %>% nrow()) / Nl
+  p1_left = (train_hr %>% filter(JobLevel<cut, Attrition==1) %>% nrow()) / Nl
+  gi_left = 1 - p0_left^2 - p1_left^2
+  
+  p0_right = (train_hr %>% filter(JobLevel>cut, Attrition==0) %>% nrow()) / Nr
+  p1_right = (train_hr %>% filter(JobLevel>cut, Attrition==1) %>% nrow()) / Nr
+  gi_right = 1 - p0_right^2 - p1_right^2
+  
+  gi_overall = (Nl/N*gi_left) + (Nr/N*gi_right)
+  gis = append(gis, gi_overall)
+  cuts = append(cuts, cut)
+}
+result = data.frame(cuts=cuts, gis=gis)
+result %>% arrange(gis)
+```
+
+#### Predict using test data
+```{r}
+model = rpart(Attrition~., train_hr)
+pred_probs = predict(model, test_hr, type="prob")
+test_hr$prediction = ifelse(pred_probs[,2]>0.5, 1, 0)
+sum(test_hr$Attrition == test_hr$prediction) / nrow(test_hr) * 100
+```
+#### Confusion matrix
+```{r}
+test_hr$prediction = predict(model, test_hr, type="class")
+confusionMatrix(test_hr$prediction,
+                test_hr$Attrition,
+                positive="1")
+```
+
+
+### Random Foresh
+- Grow multiple trees
+- Taking prediction from each tree
+
+```{r}
+
+model_rf = randomForest(Attrition~., data=train_hr)
+pred = predict(model_rf, test_hr, type='prob')
+test_hr$prediction = ifelse(pred[,2]>0.30, 1, 0)
+confusionMatrix(as.factor(test_hr$prediction),
+                test_hr$Attrition,
+                positive="1")
+```
+
+### KNN Algorithm
+```{r}
+library(class)
+hr$Attrition = as.numeric(hr$Attrition)
+dummy_obj = dummyVars(~., data=hr %>% select(-Over18))
+hr_new = data.frame(predict(dummy_obj, newdata = hr))
+View(hr_new)
+set.seed(100)
+rows_train = sample(seq(1, nrow(hr_new)), 1029) # 0.7*nrow(hr)=1029
+train = hr_new[rows_train,]
+test = hr_new[-rows_train,]
+
+pred_hr = knn(train %>% select(-Attrition),
+                test %>% select(-Attrition),
+                cl= train$Attrition,
+                k=7)
+confusionMatrix(as.factor(pred_hr),
+                as.factor(test$Attrition),
+                positive="1")
+```
+
+```{r}
+
+```
+
+
